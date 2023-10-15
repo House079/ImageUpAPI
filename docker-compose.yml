@@ -1,0 +1,44 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:14
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    command: bash -c "python manage.py migrate && python manage.py startup_code && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    env_file:
+      - .env
+
+  rabbitmq:
+    image: "rabbitmq:management"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: unless-stopped
+
+  celery-worker:
+    build: .
+    command: sh -c "celery -A rest_img worker -l info -P solo"
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+      - rabbitmq
+    restart: always
+
+volumes:
+  db_data:
